@@ -1,65 +1,27 @@
-import React, { useEffect, useState } from 'react';
-import {Link, useSearchParams} from "react-router-dom"
+import useFetch    from '../hooks/useFetch';
+import useToggle   from '../hooks/useToggle';
+import useDebounce from '../hooks/useDebounce';
 
-const Campaigns = () => {
-    const [campaigns, setCampaigns] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [searchParams, setSearchParams] = useSearchParams();
-    const channel = searchParams.get("channel") || 'all';
+function Campaigns() {
+  const { data: rawCampaigns, loading, error, refetch } =
+    useFetch('https://jsonplaceholder.typicode.com/posts?_limit=20');
+  const [search, setSearch]      = useState('');
+  const debouncedSearch          = useDebounce(search, 300);
+  const [showFilters, toggleFilters] = useToggle(false);
 
-    useEffect(() => {
-        fetch("https://jsonplaceholder.typicode.com/posts?_limit=20").then(r => r.json()).then(data => {
-            const enriched = data.map((p, i) => ({
-                    ...p,
-          channel:  i % 2 === 0 ? 'whatsapp' : 'email',
-          sent:     Math.floor(Math.random() * 5000) + 500,
-          openRate: Math.floor(Math.random() * 40) + 60,
-          status:   ['active','completed','draft'][i % 3],
-            }));
-            setCampaigns(enriched);
-            setLoading(false);
-        })
-    }, []);
+  const campaigns = rawCampaigns?.filter(c =>
+    c.title.includes(debouncedSearch)
+  ) ?? [];
 
-    const filtered = channel === "all" ? campaigns : campaigns.filter(c => c.channel === channel);
-    
-    if(loading) return <div className="loading">Loading Campaigns...</div>
+  if (loading) return <div>Loading...</div>;
+  if (error)   return <div>Error: {error} <button onClick={refetch}>Retry</button></div>;
 
   return (
-    <div className='campaigns-page container'>
-      <div className="page-header">
-        <h1>Campaigns</h1>
-        <div className="filters">
-          {['all', 'whatsapp', 'email'].map(f => (
-            <button className={`filter-btn ${channel === f ? 'is-active' : ''}`} key={f} onClick={() => setSearchParams(f === 'all' ? {} : {channel : f})}>
-              {f === 'all' ? "All" : f.charAt(0).toUpperCase() + f.slice(1)}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div className="campaigns-grid">
-        {filtered.map(campaign => (
-          <Link key={campaign.id}
-          to={`/campaigns/${campaign.id}`}
-          className='campaing-card'>
-            <div className="campaign-card_header">
-              <span className={`badge badge--${campaign.channel}`}>
-                {campaign.channel}
-              </span>
-              <span className={`status status--${campaign.status}`}>
-                {campaign.status}
-              </span>
-            </div>
-            <h3 className="campaign-card title">{campaign.title}</h3>
-            <div className="campaign-card status">
-              <span>{campaign.sent.toLocalString()} Sent</span>
-              <span>{campaign.openRate}% open rate</span>
-            </div>
-          </Link>
-        ))}
-      </div>
+    <div>
+      <input value={search} onChange={e => setSearch(e.target.value)} placeholder='Search...' />
+      <button onClick={toggleFilters}>{showFilters ? 'Hide' : 'Show'} Filters</button>
+      {showFilters && <div className='filters'>...</div>}
+      {campaigns.map(c => <CampaignCard key={c.id} campaign={c} />)}
     </div>
-  )
+  );
 }
-
-export default Campaigns
